@@ -1,0 +1,110 @@
+---
+title: "ds2_hw3"
+author: "Ruihan Zhang"
+date: "2023-03-21"
+output: pdf_document
+---
+```{r}
+library(caret)
+library(knitr)
+library(glmnet)
+library(mlbench)
+library(splines)
+library(mgcv)
+library(pROC)
+library(earth)
+library(tidyverse)
+library(ggplot2)
+library(pdp)
+library(vip)
+library(klaR)
+library(AppliedPredictiveModeling)
+```
+
+
+```{r}
+auto=read_csv("./auto.csv") %>% 
+  janitor::clean_names() %>% 
+  na.omit() %>% 
+  mutate(mpg_cat = as.factor(mpg_cat),
+         year = as.factor(year),
+         origin = as.factor(origin),
+         mpg_cat = fct_relevel(mpg_cat, c("low", "high")))
+```
+```{r}
+set.seed(2023)
+train_index=createDataPartition(y=auto$mpg_cat, p=0.7, list = FALSE)
+train=auto[train_index,]
+test=auto[-train_index,]
+#training data
+x1=model.matrix(mpg_cat~.,train)[,-1]
+y1=train$mpg_cat
+#testing data
+x2=model.matrix(mpg_cat~.,test)[,-1]
+y2=auto$mpg_cat[-train_index]
+```
+
+```{r}
+#1.
+glm_fit=glm(mpg_cat ~ ., 
+               data = auto, 
+               subset = train_index, 
+               family = binomial(link = "logit"))
+summary(glm_fit)
+```
+
+
+```{r}
+pred_prob=predict(glm_fit, newdata = auto[-train_index,],
+                           type = "response")
+pred=rep("low", length(pred_prob))
+pred[pred_prob>0.5]="high"
+cm=confusionMatrix(data = as.factor(pred),
+                reference = auto$mpg_cat[-train_index],
+                positive = "high")
+kable(cm$table,"simple")
+cm$byClass["Balanced Accuracy"]
+```
+
+
+```{r}
+#2.
+set.seed(2023)
+ctrl=trainControl(method = "repeatedcv",
+                     repeats = 5,
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE)
+mars.fit=train(x = auto[train_index,1:7],
+                    y = auto$mpg_cat[train_index],
+                    method = "earth",
+                    tuneGrid = expand.grid(degree = 1:3, 
+                                           nprune = 2:20),
+                    metric = "ROC",
+                    trControl = ctrl)
+```
+
+```{r}
+#3.
+set.seed(2023)
+lda_fit=lda(mpg_cat~., data=auto, subset=train_index)
+plot(lda_fit,col=as.numeric(auto$mpg_cat),abbrev=TRUE)
+lda_fit$scaling
+```
+```{r}
+#use caret
+set.seed(2023)
+lda_fit2=train(mpg_cat~., data=train,method="lda",metric="ROC",trControl=ctrl)
+lda_fit2$results
+```
+
+```{r}
+#4.
+set.seed(2023)
+logit_fit_caret=train(x = auto[train_index,1:7],
+                    y = auto$mpg_cat[train_index],
+                    method="glm",
+                    metric="ROC",
+                    trControl=ctrl)
+
+```
+
