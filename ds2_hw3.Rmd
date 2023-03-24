@@ -47,7 +47,7 @@ y2=auto$mpg_cat[-train_index]
 
 ```{r}
 #1.
-glm_fit=glm(mpg_cat~., data = train, subset = train_index, family =binomial(link = "logit"))
+glm_fit=glm(mpg_cat~., data = auto, subset = train_index, family =binomial(link = "logit"))
 summary(glm_fit)
 ```
 
@@ -57,13 +57,14 @@ pred_prob=predict(glm_fit, newdata = auto[-train_index,],
                            type = "response")
 pred=rep("low", length(pred_prob))
 pred[pred_prob>0.5]="high"
-cm=confusionMatrix(data = as.factor(pred),
+cm=confusionMatrix(data = factor(pred, levels = c("low","high")),
                 reference = auto$mpg_cat[-train_index],
                 positive = "high")
 kable(cm$table,"simple")
 cm$byClass["Balanced Accuracy"]
 ```
 ```{r}
+#caret
 ctrl=trainControl(method = "cv",
                      summaryFunction = twoClassSummary,
                      classProbs = TRUE)
@@ -76,24 +77,31 @@ summary(glm_model)
 #2.
 set.seed(2023)
 
-mars.fit=train(x1,
-                    y1,
+mars.fit=train(auto[train_index,1:7],
+                    auto$mpg_cat[train_index],
                     method = "earth",
                     tuneGrid = expand.grid(degree = 1:5, 
                                            nprune = 2:30),
                     metric = "ROC",
                     trControl = ctrl)
+summary(mars.fit)
 plot(mars.fit)
 kable(mars.fit$bestTune,"simple")
 coef(mars.fit$finalModel)
+vip(mars.fit$finalModel)
 ```
 
 ```{r}
 #3.
 set.seed(2023)
 lda_fit=lda(mpg_cat~., data=auto, subset=train_index)
-plot(lda_fit,col=as.numeric(auto$mpg_cat),abbrev=TRUE)
+plot(lda_fit)
 lda_fit$scaling
+```
+
+```{r}
+lda.pred=predict(lda_fit,newdata = test)
+head(lda.pred$posterior)
 ```
 
 ```{r}
@@ -119,11 +127,14 @@ bwplot(res,metric = "ROC")
 lda_pred=predict(lda_fit2, newdata = test,type = "prob")[,2]
 lda_roc=roc(test$mpg_cat, lda_pred)
 lda_auc=lda_roc$auc[1]
-ggroc(list(lda_roc), legacy.axes = TRUE) + geom_abline()
+modelName=c("LDA")
+ggroc(list(lda_roc), legacy.axes = TRUE) + scale_color_discrete(labels=paste0(modelName,"(", round(lda_auc,3),")"),name="Models(AUC)")+geom_abline()
 ```
 
 
 ```{r}
+test_pred_lda=predict(lda_fit2,newdata = test,type = "prob")
+test_pred_prob=predict(glm_fit,newdata = test, type = "response")
 pred2=rep("low",length(lda_pred))
 pred2[lda_pred>0.5]="high"
 confusionMatrix(data = as.factor(pred2),reference=test$mpg_cat,positive="high")
