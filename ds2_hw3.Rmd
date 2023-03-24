@@ -51,6 +51,7 @@ glm_fit=glm(mpg_cat~., data = auto, subset = train_index, family =binomial(link 
 summary(glm_fit)
 ```
 
+The predictors weight, year79, year80, year81 and year82 are statistically significant, because the p-value of these predictors are smaller than 0.05
 
 ```{r}
 pred_prob=predict(glm_fit, newdata = auto[-train_index,],
@@ -60,9 +61,10 @@ pred[pred_prob>0.5]="high"
 cm=confusionMatrix(data = factor(pred, levels = c("low","high")),
                 reference = auto$mpg_cat[-train_index],
                 positive = "high")
-kable(cm$table,"simple")
+cm
 cm$byClass["Balanced Accuracy"]
 ```
+From the confusion matrix, the accuracy can be calculated by (52+53)/(52+53+5+6)=0.90517. The accuracy is close to 1, so the model works well. TN is 52. TP is 53. FN is 5. FP is 6. The 95% CI is (0.8367, 0.9517). The no information rate is 0.5. The p-value is less than 2e-16, which is pretty small, so the null hypothesis is rejected. Therefore, our model is significant. The kappa value is 0.8103, which is close to 1, so the model works well. Both sensitivity and specificity is close to 1. 
 ```{r}
 #caret
 ctrl=trainControl(method = "cv",
@@ -90,7 +92,7 @@ kable(mars.fit$bestTune,"simple")
 coef(mars.fit$finalModel)
 vip(mars.fit$finalModel)
 ```
-
+When the degree is 2 with 9 terms, the AUC is the highest. 
 ```{r}
 #3.
 set.seed(2023)
@@ -123,6 +125,8 @@ summary(res)
 ```{r}
 bwplot(res,metric = "ROC")
 ```
+
+Based on the graph, the LDA model has the highest AUC. Thus, I choose the LDA model to predict the response. 
 ```{r}
 lda_pred=predict(lda_fit2, newdata = test,type = "prob")[,2]
 lda_roc=roc(test$mpg_cat, lda_pred)
@@ -130,7 +134,7 @@ lda_auc=lda_roc$auc[1]
 modelName=c("LDA")
 ggroc(list(lda_roc), legacy.axes = TRUE) + scale_color_discrete(labels=paste0(modelName,"(", round(lda_auc,3),")"),name="Models(AUC)")+geom_abline()
 ```
-
+The AUC is 0.928. 
 
 ```{r}
 test_pred_lda=predict(lda_fit2,newdata = test,type = "prob")
